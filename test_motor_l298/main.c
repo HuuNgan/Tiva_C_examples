@@ -61,7 +61,7 @@ void timerInit(void)
 //    #define INT_TIMER0A     0x23
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
-    TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
+    TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC_UP);
     TimerLoadSet(TIMER0_BASE, TIMER_A, SysCtlClockGet()-1);
 
 //    IntEnable(INT_TIMER0A);
@@ -96,7 +96,6 @@ float getTimeValue(void)
     {
         time_duration = SysCtlClockGet() - previousTimerValue + timerValue;
     }
-    sysTickValue = time_duration;
     previousTimerValue = timerValue;
     return time_duration*0.1/(SysCtlClockGet()/10);
 }
