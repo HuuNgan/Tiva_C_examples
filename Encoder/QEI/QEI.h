@@ -21,7 +21,6 @@
 #include "driverlib/qei.h"
 #include "driverlib/rom.h"
 #include "Motor/motor.h"
-#include "QEI/QEI.h"
 
 extern void Config_Qei(void);
 
