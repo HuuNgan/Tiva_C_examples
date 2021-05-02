@@ -66,18 +66,21 @@ int main(void)
     //Loop forever
     while(1)
     {
-        setSpeed_A(speed);
-        motorA_run(forward);
-        SysCtlDelay(16666666);
-        motorA_run(backward);
-        SysCtlDelay(16666666);
-        release_A();  release_B();
+//        setSpeed_A(speed);
+//        motorA_run(forward);
+//        SysCtlDelay(16666666);
+//        motorA_run(backward);
+//        SysCtlDelay(16666666);
+//        release_A();  release_B();
 
-        setSpeed_B(speed/2);
+        setSpeed_B(speed);
         motorB_run(forward);
         SysCtlDelay(16666666);
+        release_B();
+        SysCtlDelay(5000000);
         motorB_run(backward);
         SysCtlDelay(16666666);
-        release_A();  release_B();
+        release_B();
+        SysCtlDelay(5000000);
     }
 }
