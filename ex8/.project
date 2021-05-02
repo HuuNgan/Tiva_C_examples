@@ -28,10 +28,14 @@
 		<link>
 			<name>driverlib.lib</name>
 			<type>1</type>
-			<location>C:/ti/TivaWare_C_Series-2.2.0.295/driverlib/ccs/Debug/driverlib.lib</location>
+			<locationURI>DriverLib</locationURI>
 		</link>
 	</linkedResources>
 	<variableList>
+		<variable>
+			<name>DriverLib</name>
+			<value>file:/C:/ti/TivaWare_C_Series-2.2.0.295/driverlib/ccs/Debug/driverlib.lib</value>
+		</variable>
 		<variable>
 			<name>TIVAWARE</name>
 			<value>file:/C:/ti/TivaWare_C_Series-2.2.0.295</value>
