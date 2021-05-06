@@ -35,6 +35,11 @@ extern "C" {
 #define MPU6050_GYRO_SCALE_FACTOR_2000      16.4f
 #define MPU6050_ACC_SCALE_FACTOR_8          4096.0f
 
+//Offset
+#define MPU6050_GYRO_OFFSET_X               61
+#define MPU6050_GYRO_OFFSET_Y               25
+#define MPU6050_GYRO_OFFSET_Z               59
+
 void initI2C(void);
 void i2cWrite(uint8_t addr, uint8_t regAddr, uint8_t data);
 void i2cWriteData(uint8_t addr, uint8_t regAddr, uint8_t *date, uint8_t length);
