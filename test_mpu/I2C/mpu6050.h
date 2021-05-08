@@ -32,13 +32,16 @@ extern "C" {
 #define MPU6050_WHO_AM_I_ID                 0x68
 
 // Scale factor for +-2000deg/s and +-8g - see datasheet:
-#define MPU6050_GYRO_SCALE_FACTOR_2000      16.4f
+#define MPU6050_GYRO_SCALE_FACTOR_2000      16.384f
 #define MPU6050_ACC_SCALE_FACTOR_8          4096.0f
 
 //Offset
-#define MPU6050_GYRO_OFFSET_X               61
-#define MPU6050_GYRO_OFFSET_Y               25
-#define MPU6050_GYRO_OFFSET_Z               59
+//#define MPU6050_GYRO_OFFSET_X               62
+//#define MPU6050_GYRO_OFFSET_Y               103
+//#define MPU6050_GYRO_OFFSET_Z               32
+//#define MPU6050_ACC_OFFSET_X                989
+//#define MPU6050_ACC_OFFSET_Y                252
+//#define MPU6050_ACC_OFFSET_Z                3740
 
 void initI2C(void);
 void i2cWrite(uint8_t addr, uint8_t regAddr, uint8_t data);
@@ -47,6 +50,8 @@ uint8_t i2cRead(uint8_t addr, uint8_t regAddr);
 void i2cReadData(uint8_t addr, uint8_t regAddr, uint8_t *data, uint8_t length);
 void initMPU6050(void);
 void getMPU6050Data(void);
+float Comp_Filter(float gyroValue, float accelValue);
+
 #ifdef __cplusplus
 }
 #endif

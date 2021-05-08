@@ -87,41 +87,47 @@ void i2cReadData(uint8_t addr, uint8_t regAddr, uint8_t *data, uint8_t length) {
     data[length - 1] = I2CMasterDataGet(I2C1_BASE); // Place data into data register
 }
 void initMPU6050(void) {
-uint8_t i2cBuffer[5]; // Buffer for I2C data
-i2cBuffer[0] = i2cRead(MPU6050_ADDRESS, MPU6050_WHO_AM_I);
-i2cWrite(MPU6050_ADDRESS, MPU6050_PWR_MGMT_1, (1 << 7)); // Reset device, this resets all internal registers to their default values
-SysCtlDelay(SysCtlClockGet()/100);
-while (i2cRead(MPU6050_ADDRESS, MPU6050_PWR_MGMT_1) & (1 << 7)) {
-// Wait for the bit to clear
-};
-SysCtlDelay(SysCtlClockGet()/100);
-i2cWrite(MPU6050_ADDRESS, MPU6050_PWR_MGMT_1, (1 << 3) | (1 << 0)); // Disable sleep mode, disable temperature sensor and use PLL as clock reference
+    uint8_t i2cBuffer[5]; // Buffer for I2C data
+    i2cBuffer[0] = i2cRead(MPU6050_ADDRESS, MPU6050_WHO_AM_I);
+    i2cWrite(MPU6050_ADDRESS, MPU6050_PWR_MGMT_1, (1 << 7)); // Reset device, this resets all internal registers to their default values
+    SysCtlDelay(SysCtlClockGet()/100);
+    while (i2cRead(MPU6050_ADDRESS, MPU6050_PWR_MGMT_1) & (1 << 7)) {
+    // Wait for the bit to clear
+    };
+    SysCtlDelay(SysCtlClockGet()/100);
+    i2cWrite(MPU6050_ADDRESS, MPU6050_PWR_MGMT_1, (1 << 3) | (1 << 0)); // Disable sleep mode, disable temperature sensor and use PLL as clock reference
 
-i2cBuffer[0] = 0; // Set the sample rate to 1kHz - 1kHz/(1+0) = 1kHz
-i2cBuffer[1] = 0x03; // Disable FSYNC and set 41 Hz Gyro filtering, 1 KHz sampling
-i2cBuffer[2] = 3 << 3; // Set Gyro Full Scale Range to +-2000deg/s
-i2cBuffer[3] = 2 << 3; // Set Accelerometer Full Scale Range to +-8g
-i2cBuffer[4] = 0x03; // 41 Hz Acc filtering
-i2cWriteData(MPU6050_ADDRESS, MPU6050_SMPLRT_DIV, i2cBuffer, 5); // Write to all five registers at once
+    i2cBuffer[0] = 0; // Set the sample rate to 1kHz - 1kHz/(1+0) = 1kHz
+    i2cBuffer[1] = 0x03; // Disable FSYNC and set 41 Hz Gyro filtering, 1 KHz sampling
+    i2cBuffer[2] = 3 << 3; // Set Gyro Full Scale Range to +-2000deg/s
+    i2cBuffer[3] = 2 << 3; // Set Accelerometer Full Scale Range to +-8g
+    i2cBuffer[4] = 0x03; // 41 Hz Acc filtering
+    i2cWriteData(MPU6050_ADDRESS, MPU6050_SMPLRT_DIV, i2cBuffer, 5); // Write to all five registers at once
 
 
-/* Enable Raw Data Ready Interrupt on INT pin */
-i2cBuffer[0] = (1 << 5) | (1 << 4); // Enable LATCH_INT_EN and INT_ANYRD_2CLEAR
-// When this bit is equal to 1, the INT pin is held high until the interrupt is cleared
-// When this bit is equal to 1, interrupt status is cleared if any read operation is performed
-i2cBuffer[1] = (1 << 0);            // Enable RAW_RDY_EN - When set to 1, Enable Raw Sensor Data Ready interrupt to propagate to interrupt pin
-i2cWriteData(MPU6050_ADDRESS, MPU6050_INT_PIN_CFG, i2cBuffer, 2); // Write to both registers at once
+    /* Enable Raw Data Ready Interrupt on INT pin */
+    i2cBuffer[0] = (1 << 5) | (1 << 4); // Enable LATCH_INT_EN and INT_ANYRD_2CLEAR
+    // When this bit is equal to 1, the INT pin is held high until the interrupt is cleared
+    // When this bit is equal to 1, interrupt status is cleared if any read operation is performed
+    i2cBuffer[1] = (1 << 0);            // Enable RAW_RDY_EN - When set to 1, Enable Raw Sensor Data Ready interrupt to propagate to interrupt pin
+    i2cWriteData(MPU6050_ADDRESS, MPU6050_INT_PIN_CFG, i2cBuffer, 2); // Write to both registers at once
 
 }
 void getMPU6050Data(void) {
-uint8_t buf[14];
-i2cReadData(MPU6050_ADDRESS, MPU6050_ACCEL_XOUT_H, buf, 14); // Note that we can't write directly into MPU6050_t, because of endian conflict. So it has to be done manually
+    uint8_t buf[14];
+    i2cReadData(MPU6050_ADDRESS, MPU6050_ACCEL_XOUT_H, buf, 14); // Note that we can't write directly into MPU6050_t, because of endian conflict. So it has to be done manually
 
-accaxisX = (buf[0] << 8) | buf[1];
-accaxisY = (buf[2] << 8) | buf[3];
-accaxisZ = (buf[4] << 8) | buf[5];
+    accaxisX = (buf[0] << 8) | buf[1];
+    accaxisY = (buf[2] << 8) | buf[3];
+    accaxisZ = (buf[4] << 8) | buf[5];
 
-gyroaxisX = (buf[8] << 8) | buf[9];
-gyroaxisY = (buf[10] << 8) | buf[11];
-gyroaxisZ = (buf[12] << 8) | buf[13];
+    gyroaxisX = (buf[8] << 8) | buf[9];
+    gyroaxisY = (buf[10] << 8) | buf[11];
+    gyroaxisZ = (buf[12] << 8) | buf[13];
+}
+
+float Comp_Filter(float gyroValue, float accelValue)
+{
+    float alpha = 0.9;
+    return (float)gyroValue*alpha + (float)accelValue*(1-alpha);
 }
