@@ -10,24 +10,43 @@
 #include "driverlib/uart.h"
 #include "utils/uartstdio.h"
 #include "debug.h"
-#include <I2C/mpu6050.h>
+#include "I2C/mpu6050.h"
+#include "Motor/L298.h"
 
+//***Compiler Option***********************************************************
 #define     CALIB
 //#define     DEBUG_UART
+//*****************************************************************************
+
+//***Definitions***************************************************************
+#define MOTOR_DUTY_OFFSET           100
+#define TIMER_PERIOD                (SysCtlClockGet()/50)
+#define NUM_OF_VALUES(a) ((unsigned long long)1 << \
+        (sizeof(a) * 8))
+//*****************************************************************************
+
+typedef struct
+{
+    float acc_x, acc_y, acc_z;
+    float gyro_x, gyro_y, gyro_z;
+} OffsetCalibration;
+
+typedef struct
+{
+    float Kp, Ki, Kd, current_err, previous_err;
+    float iteration_sum, iteration_time;
+}PID_coefficient;
 
 int16_t accaxisX, accaxisY, accaxisZ, gyroaxisX, gyroaxisY, gyroaxisZ;
+int16_t motor_duty;
+uint8_t timer_count=0, timer_count_pre=0;
 float acc_angle_x;
 float gyroAngle_x = 0;
 float gyroRate;
 float filted_Angle;
 
-typedef struct
-{
-    int16_t acc_x, acc_y, acc_z;
-    int16_t gyro_x, gyro_y, gyro_z;
-} OffsetCalibration;
-
 OffsetCalibration OFFSET = {62, 103, 32, 989, 8, 3740};
+PID_coefficient MotorPID = {10, 0.0002, 10};
 
 //**********DEBUG**************************************************************
 #ifdef DEBUG_UART
@@ -73,7 +92,7 @@ void InitConsole(void)
 
 //**********Calibration mode***************************************************
 #ifdef CALIB
-#define NUM_OF_SAMPLES          10
+#define NUM_OF_SAMPLES          100
 
 void Calib_IMU(void)
 {
@@ -90,7 +109,7 @@ void Calib_IMU(void)
     }
     sum=0;
     for(i=0; i<NUM_OF_SAMPLES; i++) sum += buffer[i];
-    OFFSET.acc_x = sum/NUM_OF_SAMPLES;
+    OFFSET.acc_x = (float)sum/NUM_OF_SAMPLES;
 
 //    for(i=0; i<NUM_OF_SAMPLES; i++)
 //    {
@@ -130,7 +149,7 @@ void Calib_IMU(void)
     }
     sum=0;
     for(i=0; i<NUM_OF_SAMPLES; i++) sum += buffer[i];
-    OFFSET.gyro_y = sum/NUM_OF_SAMPLES;
+    OFFSET.gyro_y = (float)sum/NUM_OF_SAMPLES;
 //
 //    for(i=0; i<NUM_OF_SAMPLES; i++)
 //    {
@@ -150,11 +169,30 @@ float convertToDegree(int16_t accelValue)
     return (float)accelValue*90/MPU6050_ACC_SCALE_FACTOR_8;
 }
 
+float getTimeValue(void)
+{
+    int32_t time_duration, timerValue;
+    static int previousTimerValue=0;
+    timerValue = TimerValueGet(TIMER0_BASE, TIMER_A);
+    if(timer_count >= timer_count_pre)
+    {
+        time_duration = timerValue - previousTimerValue + (timer_count - timer_count_pre)*TIMER_PERIOD;
+    }
+    else
+    {
+        time_duration = timerValue - previousTimerValue +
+        (NUM_OF_VALUES(timer_count) + timer_count - timer_count_pre)*TIMER_PERIOD;
+    }
+    previousTimerValue = timerValue;
+    timer_count_pre = timer_count;
+    return (float)time_duration/(float)(SysCtlClockGet()/1000);      //return in ms
+}
+
 void timerInit(void)
 {
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
     TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC_UP);
-    TimerLoadSet(TIMER0_BASE, TIMER_A, SysCtlClockGet()/50-1);  //20ms
+    TimerLoadSet(TIMER0_BASE, TIMER_A, TIMER_PERIOD-1);  //20ms
 
     IntEnable(INT_TIMER0A);
     TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
@@ -168,12 +206,13 @@ void Timer0AIntHandler(void)
     getMPU6050Data();
     gyroRate = -(float)(gyroaxisY - OFFSET.gyro_y)/MPU6050_GYRO_SCALE_FACTOR_2000;
     gyroAngle_x += gyroRate*0.02f;
+    timer_count++;
     TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
 }
 
 int main(void)
 {
-    SysCtlClockSet(SYSCTL_SYSDIV_4|SYSCTL_USE_PLL|SYSCTL_XTAL_16MHZ|SYSCTL_OSC_MAIN);
+    SysCtlClockSet(SYSCTL_SYSDIV_2_5|SYSCTL_USE_PLL|SYSCTL_XTAL_16MHZ|SYSCTL_OSC_MAIN);
 
     #ifdef  DEBUG_UART
         InitConsole();
@@ -182,10 +221,11 @@ int main(void)
 
         initI2C();
         initMPU6050();
-        timerInit();
     #ifdef CALIB
         Calib_IMU();
     #endif
+        timerInit();
+        MOTOR_Config();
 
     #ifdef DEBUG_UART
         DBG("acc_x_offset = %d\n", (int)OFFSET.acc_x);
@@ -201,12 +241,41 @@ int main(void)
 //        getMPU6050Data();
         acc_angle_x = convertToDegree(accaxisX - OFFSET.acc_x);
         filted_Angle = Comp_Filter(gyroAngle_x, acc_angle_x);
+        if(filted_Angle > 0)
+        {
+            motorA_run(backward);
+            motorB_run(backward);
+        }
+        else
+        {
+            motorA_run(forward);
+            motorB_run(forward);
+        }
+
+        //***PID controll******************************************************
+        MotorPID.iteration_time = getTimeValue();
+        MotorPID.current_err = filted_Angle;
+        MotorPID.iteration_sum += MotorPID.current_err*MotorPID.iteration_time;
+        motor_duty =MotorPID.Kp*MotorPID.current_err + MotorPID.Ki*MotorPID.iteration_sum
+                        + MotorPID.Kd*(MotorPID.current_err-MotorPID.previous_err)/MotorPID.iteration_time;
+        if(motor_duty >= 0)
+        {
+            setSpeed_A(motor_duty + MOTOR_DUTY_OFFSET);
+            setSpeed_B(motor_duty + MOTOR_DUTY_OFFSET);
+        }
+        else
+        {
+            setSpeed_A(-motor_duty + MOTOR_DUTY_OFFSET);
+            setSpeed_B(-motor_duty + MOTOR_DUTY_OFFSET);
+        }
+        MotorPID.previous_err = MotorPID.current_err;
+        //*********************************************************************
 
         #ifdef DEBUG_UART
             UARTprintf("acc_angle_x = %d\n", (int)acc_angle_x);
             UARTprintf("gyro_angle_x = %d\n", (int)gyroAngle_x);
             UARTprintf("Comp_Angle_x = %d\n", (int)filted_Angle);
+//            SysCtlDelay(SysCtlClockGet()/6);
         #endif
-        SysCtlDelay(SysCtlClockGet()/6);
     }
 }
