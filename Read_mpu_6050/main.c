@@ -19,7 +19,7 @@ float gyroAngle(int16_t gyroValue)
 #define time 0.02
     float gyroAngle = 0;
     float gyroRate = gyroaxisX*90/MPU6050_GYRO_SCALE_FACTOR_2000;
-    gyroAngle += gyroRate*time
+    gyroAngle += gyroRate*time;
 }
 
 int main(void)
