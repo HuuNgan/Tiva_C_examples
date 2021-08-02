@@ -18,7 +18,7 @@
 #define POSITION_ERR    5
 #define DOOR_CLOSE_POS  1000
 #define DOOR_OPEN_POS   1374
-#define DOOR_OPEN_TIME  5   //seconds
+#define DOOR_OPEN_TIME  3   //seconds
 
 enum {CLOSED, OPENED, WAITING_OPEN, WAITING_CLOSE} DoorState;
 
@@ -39,7 +39,7 @@ typedef struct
 Encoder encoderA, encoderB;
 PID_coefficient PID_B={0.2, 0.000015, 10};
 int16_t dutyB;
-uint8_t timerCount=0;
+uint8_t timerCount=0, sensorCount=0, sensorDebounce=0;
 
 void GPIOInterruptInit(){
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
@@ -50,12 +50,12 @@ void GPIOInterruptInit(){
     HWREG(GPIO_PORTF_BASE + GPIO_O_LOCK) = 0;
 
 //    GPIOIntRegister(GPIO_PORTD_BASE);
-    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_0);
-    GPIOPadConfigSet(GPIO_PORTF_BASE,GPIO_PIN_0, GPIO_STRENGTH_2MA,GPIO_PIN_TYPE_STD_WPU);  //Pullup
-    GPIOIntTypeSet(GPIO_PORTF_BASE, GPIO_PIN_0, GPIO_FALLING_EDGE);
+    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4);
+    GPIOPadConfigSet(GPIO_PORTF_BASE,GPIO_PIN_0 | GPIO_PIN_4, GPIO_STRENGTH_2MA,GPIO_PIN_TYPE_STD_WPU);  //Pullup
+    GPIOIntTypeSet(GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4, GPIO_FALLING_EDGE);
 
-    GPIOIntEnable(GPIO_PORTF_BASE, GPIO_PIN_0);
-    GPIOIntClear(GPIO_PORTF_BASE, GPIO_PIN_0);
+    GPIOIntEnable(GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4);
+    GPIOIntClear(GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4);
     IntMasterEnable();
     IntEnable(INT_GPIOF);
     //  HWREG(0x40004410) = 0xFF;
@@ -141,17 +141,43 @@ void Timer0AIntHandler(void)
 {
     TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
     timerCount++;
+    if(sensorCount==1) sensorDebounce++;
+    if(sensorCount==1 && sensorDebounce > 1)
+    {
+        sensorCount = 0;
+        sensorDebounce = 0;
+    }
 }
 
 void GPIOFIntHandler(void)
 {
-    GPIOIntClear(GPIO_PORTF_BASE, GPIO_PIN_0);
+    uint8_t u8_IO_pin=0xFF, sw1, sw2;
+    sw1 = GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_0);
+    sw2 = GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_4);
 
-    if(DoorState == CLOSED || DoorState == WAITING_CLOSE)
+    GPIOIntClear(GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4);
+    if(sw1)
+    {
+        if(u8_IO_pin != 0) sensorCount++;
+        u8_IO_pin=0;
+    }
+
+    else if(sw2)
+    {
+        if(u8_IO_pin != 4) sensorCount++;
+        u8_IO_pin=4;
+    }
+
+    if((DoorState == CLOSED || DoorState == WAITING_CLOSE) && sensorCount>=2)
     {
         DoorState = WAITING_OPEN;
+        sensorCount=0;
     }
-    else if(DoorState == OPENED)    timerCount = 0;     //reset timer
+    else if(DoorState == OPENED && sensorCount>=2)
+    {
+        timerCount = 0;     //reset timer
+        sensorCount=0;
+    }
 }
 
 int main(void)
