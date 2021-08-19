@@ -6,14 +6,15 @@
 #include "driverlib/pin_map.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/systick.h"
-#include "driverlib/uart.h"
-#include "utils/uartstdio.h"
+//#include "driverlib/uart.h"
+//#include "utils/uartstdio.h"
+//#include "state.h"
 
 volatile uint32_t g_ui32Counter = 0;
 uint8_t ui8LED;
+uint8_t MyTimerCount = 0xFF;
 
-void
-SysTickIntHandler(void)
+void SysTickIntHandler(void)
 {
     //toggle led
     static uint8_t i;
